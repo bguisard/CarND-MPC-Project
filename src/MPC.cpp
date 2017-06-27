@@ -7,12 +7,12 @@ using CppAD::AD;
 
 // First attempt; copied from MPC exercise.
 // Needs to be improved later
-size_t N = 25;
-double dt = 0.05;
+size_t N = 10;
+double dt = 0.2;
 
 // We'll start slowly
 // First goal is to just do a slow lap
-double ref_v = 15. * (4./9.);
+double ref_v = 40. * (4./9.);
 
 // This value assumes the model presented in the classroom is used.
 //
@@ -69,9 +69,9 @@ class FG_eval {
     // Costs associated with the reference state
     for (int t = 0; t < N; t++) {
       // Cross track squared error
-      fg[0] += CppAD::pow(vars[cte_start + t], 2);
+      fg[0] += 5000 * CppAD::pow(vars[cte_start + t], 2);
       // Orientation squared error
-      fg[0] += CppAD::pow(vars[psi_start + t], 2);
+      fg[0] += 1 * CppAD::pow(vars[epsi_start + t], 2);
       // Velocity squared error - ensures car won't find a solution
       // where it doesn't move, but is the simplest solution to deal with
       // this issue.
@@ -83,7 +83,7 @@ class FG_eval {
     // Costs associated with constant change of throttle and steering
     // we want the drive to be smooth in both dimensions
     for (int t = 0; t < N - 1; t++) {
-      fg[0] += CppAD::pow(vars[delta_start + t], 2);
+      fg[0] += 30000 * CppAD::pow(vars[delta_start + t], 2);
       fg[0] += CppAD::pow(vars[a_start + t], 2);
     }
 
@@ -91,7 +91,7 @@ class FG_eval {
     // this penalizes behaviors such as drastic changes in steering
     // angle or throttle
     for (int t = 0; t < N - 2; t++) {
-      fg[0] += CppAD::pow(vars[delta_start + t + 1] - vars[delta_start + t], 2);
+      fg[0] += 2000 * CppAD::pow(vars[delta_start + t + 1] - vars[delta_start + t], 2);
       fg[0] += CppAD::pow(vars[a_start + t + 1] - vars[a_start + t], 2);
     }
 

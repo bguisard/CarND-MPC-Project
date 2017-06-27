@@ -94,10 +94,6 @@ Eigen::MatrixXd transformCoords(vector<double> next_x_vals, vector<double> next_
   // Calculate transformed coordinates
   transf_coords = raw_coords * transf_matrix.transpose();
 
-  // Debugging statements
-  //std::cout << raw_coords << std::endl << std::endl;
-  //std::cout << transf_coords << std::endl << std::endl;
-
   return transf_coords;
 }
 
@@ -116,7 +112,7 @@ int main() {
     // The 4 signifies a websocket message
     // The 2 signifies a websocket event
     string sdata = string(data).substr(0, length);
-    cout << sdata << endl;
+    //cout << sdata << endl;
     if (sdata.size() > 2 && sdata[0] == '4' && sdata[1] == '2') {
       string s = hasData(sdata);
       if (s != "") {
@@ -133,12 +129,7 @@ int main() {
           double steering_angle = (j[1]["steering_angle"]);
           double latency = 100./1000.;
 
-          /*
-          * TODO: Calculate steering angle and throttle using MPC.
-          *
-          * Both are in between [-1, 1].
-          *
-          */
+
           // We'll use Eigen vectors and matrices to replace for loops
           // with vectorization for performance
           Eigen::MatrixXd converted_pts = transformCoords(ptsx, ptsy, psi, px, py);
@@ -152,19 +143,16 @@ int main() {
           // have latency, we need to estimate where we will be
           // by the time our inputs are delivered.
 
-          // approximated version because dt is small - Maybe improve later
-          px = v * latency;
-          py = 0;
-          psi = -v * latency * (steering_angle / 2.67);
-
+          // LATENCY
           // convert v to m/s
           v = v * (4./9.); // same as v * 1600m / 3600s
 
+          psi = 0 - v * (steering_angle / 2.67) * latency; //2.67 is the Lf as defined in MPC.cpp
+          px = 0 + v * cos(psi) * latency;
+          py = 0 + v * sin(psi) * latency;
+
           // calculate the cross track error
           double cte = polyeval(coeffs, px);
-
-          //std::cout << "\n\n***** COEFS ***** \n" << coeffs << std::endl;
-          //std::cout << "\n\n***** CTE ***** \n" << cte << std::endl;
 
           // calculate the orientation error
           Eigen::VectorXd d_coeffs(3);
@@ -173,11 +161,7 @@ int main() {
                       3.*coeffs[3];
 
           double psi_des = atan(polyeval(d_coeffs, px));
-          double epsi = psi_des;
-
-          //std::cout << "\n\n***** d_COEFS ***** \n" << d_coeffs << std::endl;
-          //std::cout << "\n\n***** psi_des ***** \n" << psi_des << std::endl;
-          //std::cout << "\n\n***** Orientation Error ***** \n" << epsi << std::endl;
+          double epsi = 0 - psi_des;
 
           // Initialize State Vector
           Eigen::VectorXd state(6);
@@ -191,8 +175,8 @@ int main() {
           steer_value = 0 - (vars[0] / max_angle_div);
           throttle_value = vars[1];
 
-          std::cout << "\n\n***** raw Steer value ***** \n" << vars[0] << std::endl;
-          std::cout << "\n\n***** raw throttle value ***** \n" << vars[1] << std::endl;
+          //std::cout << "\n\n***** raw Steer value ***** \n" << vars[0] << std::endl;
+          //std::cout << "\n\n***** raw throttle value ***** \n" << vars[1] << std::endl;
 
           json msgJson;
           // NOTE: Remember to divide by deg2rad(25) before you send the steering value back.
@@ -224,7 +208,7 @@ int main() {
 
 
           auto msg = "42[\"steer\"," + msgJson.dump() + "]";
-          std::cout << msg << std::endl;
+          //std::cout << msg << std::endl;
           // Latency
           // The purpose is to mimic real driving conditions where
           // the car does actuate the commands instantly.
