@@ -65,13 +65,52 @@ Eigen::VectorXd polyfit(Eigen::VectorXd xvals, Eigen::VectorXd yvals,
   return result;
 }
 
+// helper function to convert points from map coords to car coords
+Eigen::MatrixXd transformCoords(vector<double> next_x_vals, vector<double> next_y_vals,
+                                                       double psi, double x, double y) {
+
+  // Sanity check
+  assert(next_x_vals.size() == next_y_vals.size());
+
+  // Declare matrices and vectors
+  Eigen::MatrixXd raw_coords(next_x_vals.size(), 2);
+  Eigen::MatrixXd transf_coords(next_x_vals.size(), 2);
+  Eigen::MatrixXd transf_matrix(2, 2);
+  Eigen::VectorXd cur_position(2);
+
+  // Cast std::vectors into eigen to speed up calcs
+  Eigen::Map<Eigen::VectorXd> x_vect(&next_x_vals[0], next_x_vals.size());
+  Eigen::Map<Eigen::VectorXd> y_vect(&next_y_vals[0], next_y_vals.size());
+  raw_coords << x_vect, y_vect;
+
+  // Subtract current next point coord from current point coord
+  cur_position << x, y;
+  raw_coords.rowwise() -= cur_position.transpose();
+
+  // Create transformation matrix
+  transf_matrix << cos(psi), sin(psi),
+                   -sin(psi), cos(psi);
+
+  // Calculate transformed coordinates
+  transf_coords = raw_coords * transf_matrix.transpose();
+
+  // Debugging statements
+  //std::cout << raw_coords << std::endl << std::endl;
+  //std::cout << transf_coords << std::endl << std::endl;
+
+  return transf_coords;
+}
+
 int main() {
   uWS::Hub h;
 
   // MPC is initialized here!
   MPC mpc;
 
-  h.onMessage([&mpc](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+  const double max_angle_div = 25. * M_PI / 180.;
+
+
+  h.onMessage([&mpc, &max_angle_div](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -91,6 +130,8 @@ int main() {
           double py = j[1]["y"];
           double psi = j[1]["psi"];
           double v = j[1]["speed"];
+          double steering_angle = (j[1]["steering_angle"]);
+          double latency = 100./1000.;
 
           /*
           * TODO: Calculate steering angle and throttle using MPC.
@@ -98,8 +139,60 @@ int main() {
           * Both are in between [-1, 1].
           *
           */
+          // We'll use Eigen vectors and matrices to replace for loops
+          // with vectorization for performance
+          Eigen::MatrixXd converted_pts = transformCoords(ptsx, ptsy, psi, px, py);
+          Eigen::VectorXd nxt_x_vals = converted_pts.col(0);
+          Eigen::VectorXd nxt_y_vals = converted_pts.col(1);
+
+          auto coeffs = polyfit(nxt_x_vals, nxt_y_vals, 3);
+
+          // Converting px, py and psi to CAR reference
+          // should make all of them zero, but because we
+          // have latency, we need to estimate where we will be
+          // by the time our inputs are delivered.
+
+          // approximated version because dt is small - Maybe improve later
+          px = v * latency;
+          py = 0;
+          psi = -v * latency * (steering_angle / 2.67);
+
+          // convert v to m/s
+          v = v * (4./9.); // same as v * 1600m / 3600s
+
+          // calculate the cross track error
+          double cte = polyeval(coeffs, px);
+
+          //std::cout << "\n\n***** COEFS ***** \n" << coeffs << std::endl;
+          //std::cout << "\n\n***** CTE ***** \n" << cte << std::endl;
+
+          // calculate the orientation error
+          Eigen::VectorXd d_coeffs(3);
+          d_coeffs << coeffs[1],
+                      2.*coeffs[2],
+                      3.*coeffs[3];
+
+          double psi_des = atan(polyeval(d_coeffs, px));
+          double epsi = psi_des;
+
+          //std::cout << "\n\n***** d_COEFS ***** \n" << d_coeffs << std::endl;
+          //std::cout << "\n\n***** psi_des ***** \n" << psi_des << std::endl;
+          //std::cout << "\n\n***** Orientation Error ***** \n" << epsi << std::endl;
+
+          // Initialize State Vector
+          Eigen::VectorXd state(6);
+          state << px, py, psi, v, cte, epsi;
+
+          auto vars = mpc.Solve(state, coeffs);
+
           double steer_value;
           double throttle_value;
+
+          steer_value = 0 - (vars[0] / max_angle_div);
+          throttle_value = vars[1];
+
+          std::cout << "\n\n***** raw Steer value ***** \n" << vars[0] << std::endl;
+          std::cout << "\n\n***** raw throttle value ***** \n" << vars[1] << std::endl;
 
           json msgJson;
           // NOTE: Remember to divide by deg2rad(25) before you send the steering value back.
@@ -107,9 +200,10 @@ int main() {
           msgJson["steering_angle"] = steer_value;
           msgJson["throttle"] = throttle_value;
 
-          //Display the MPC predicted trajectory 
-          vector<double> mpc_x_vals;
-          vector<double> mpc_y_vals;
+          //Display the MPC predicted trajectory
+          int N = vars[2];
+          vector<double> mpc_x_vals(&vars[3],&vars[3 + N]);
+          vector<double> mpc_y_vals(&vars[3 + N],&vars[3 + N + N]);
 
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Green line
@@ -117,9 +211,10 @@ int main() {
           msgJson["mpc_x"] = mpc_x_vals;
           msgJson["mpc_y"] = mpc_y_vals;
 
+
           //Display the waypoints/reference line
-          vector<double> next_x_vals;
-          vector<double> next_y_vals;
+          vector<double> next_x_vals(nxt_x_vals.data(), nxt_x_vals.data() + nxt_x_vals.rows() * nxt_x_vals.cols());
+          vector<double> next_y_vals(nxt_y_vals.data(), nxt_y_vals.data() + nxt_y_vals.rows() * nxt_y_vals.cols());
 
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Yellow line
