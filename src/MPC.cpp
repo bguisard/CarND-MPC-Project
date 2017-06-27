@@ -136,7 +136,7 @@ class FG_eval {
       AD<double> a0 = vars[a_start + t - 1];
 
       // Cost constraint
-      AD<double> f0 = coeffs[0] + coeffs[1] * x0;
+      AD<double> f0 = coeffs[0] + coeffs[1] * x0 + coeffs[2] * pow(x0,2) + coeffs[3] * pow(x0,3);
 
       // Desired steering angle
       AD<double> psides0 = CppAD::atan(coeffs[1]);
@@ -300,10 +300,4 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
 
   return output;
 
-  /*
-  return {solution.x[x_start + 1],   solution.x[y_start + 1],
-          solution.x[psi_start + 1], solution.x[v_start + 1],
-          solution.x[cte_start + 1], solution.x[epsi_start + 1],
-          solution.x[delta_start],   solution.x[a_start]};
-  */
 }
