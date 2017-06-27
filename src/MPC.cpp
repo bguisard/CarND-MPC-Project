@@ -12,7 +12,7 @@ double dt = 0.2;
 
 // We'll start slowly
 // First goal is to just do a slow lap
-double ref_v = 40. * (4./9.);
+double ref_v = 200. * (4./9.);
 
 // This value assumes the model presented in the classroom is used.
 //
@@ -71,7 +71,7 @@ class FG_eval {
       // Cross track squared error
       fg[0] += 5000 * CppAD::pow(vars[cte_start + t], 2);
       // Orientation squared error
-      fg[0] += 1 * CppAD::pow(vars[epsi_start + t], 2);
+      fg[0] += 500 * CppAD::pow(vars[epsi_start + t], 2);
       // Velocity squared error - ensures car won't find a solution
       // where it doesn't move, but is the simplest solution to deal with
       // this issue.
@@ -83,7 +83,7 @@ class FG_eval {
     // Costs associated with constant change of throttle and steering
     // we want the drive to be smooth in both dimensions
     for (int t = 0; t < N - 1; t++) {
-      fg[0] += 30000 * CppAD::pow(vars[delta_start + t], 2);
+      fg[0] += 50000 * CppAD::pow(vars[delta_start + t], 2);
       fg[0] += CppAD::pow(vars[a_start + t], 2);
     }
 
@@ -91,7 +91,7 @@ class FG_eval {
     // this penalizes behaviors such as drastic changes in steering
     // angle or throttle
     for (int t = 0; t < N - 2; t++) {
-      fg[0] += 2000 * CppAD::pow(vars[delta_start + t + 1] - vars[delta_start + t], 2);
+      fg[0] += 5000 * CppAD::pow(vars[delta_start + t + 1] - vars[delta_start + t], 2);
       fg[0] += CppAD::pow(vars[a_start + t + 1] - vars[a_start + t], 2);
     }
 
@@ -139,7 +139,7 @@ class FG_eval {
       AD<double> f0 = coeffs[0] + coeffs[1] * x0 + coeffs[2] * pow(x0,2) + coeffs[3] * pow(x0,3);
 
       // Desired steering angle
-      AD<double> psides0 = CppAD::atan(coeffs[1]);
+      AD<double> psides0 = CppAD::atan(coeffs[1] + 2. * coeffs[2] * x0 + 3. * coeffs[3] * pow(x0,2));
 
       // STATE constraints
       fg[1 + x_start + t] = x1 - (x0 + v0 * CppAD::cos(psi0) * dt);
