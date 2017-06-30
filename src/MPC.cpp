@@ -5,13 +5,8 @@
 
 using CppAD::AD;
 
-// First attempt; copied from MPC exercise.
-// Needs to be improved later
 size_t N = 10;
 double dt = 0.2;
-
-// We'll start slowly
-// First goal is to just do a slow lap
 double ref_v = 200. * (4./9.);
 
 // This value assumes the model presented in the classroom is used.
@@ -51,10 +46,6 @@ class FG_eval {
 
   typedef CPPAD_TESTVECTOR(AD<double>) ADvector;
   void operator()(ADvector& fg, const ADvector& vars) {
-    // TODO: implement MPC
-    // `fg` a vector of the cost constraints, `vars` is a vector of variable values (state & actuators)
-    // NOTE: You'll probably go back and forth between this function and
-    // the Solver function below.
 
     // ************************************************************************
     // *  COSTS                                                               *
@@ -201,8 +192,6 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   Dvector vars_lowerbound(n_vars);
   Dvector vars_upperbound(n_vars);
 
-  // TODO: Set lower and upper limits for variables.
-
   // Set all non-actuators upper and lowerlimits
   // to the max negative and positive values.
   for (int i = 0; i < delta_start; i++) {
@@ -255,9 +244,6 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   // object that computes objective and constraints
   FG_eval fg_eval(coeffs);
 
-  //
-  // NOTE: You don't have to worry about these options
-  //
   // options for IPOPT solver
   std::string options;
   // Uncomment this if you'd like more print information
